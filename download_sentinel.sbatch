@@ -1,11 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=sentinel_download
-#SBATCH --output=sentinel_download_%j.out
-#SBATCH --error=sentinel_download_%j.err
+#SBATCH --output=sentinel_download/run_%j/out
+#SBATCH --error=sentinel_download/run_%j/err
 #SBATCH --partition=serc
 #SBATCH --time=120:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=4
+#SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem-per-cpu=2G
 
@@ -14,7 +13,7 @@
 
 set -e
 
-PROJECT_ROOT="/scratch/groups/dustinms/apptainer-tests/thalassoica/opt/project"
+PROJECT_ROOT="/scratch/groups/dustinms/thalassoica-dev/thalassoica/opt/project"
 CONTAINER="thalassoica"
 CONTAINER_PATH="/opt/project"
 
@@ -23,7 +22,7 @@ TOKEN_DOTENV="${PROJECT_ROOT}/copernicus_tokens.env"
 LOGIN_DOTENV="${PROJECT_ROOT}/copernicus_login.env"
 DB_DIR="${PROJECT_ROOT}/intermediates/db"
 DB_FILE="${DB_DIR}/database.duckdb"
-UUIDS_FILE="${PROJECT_ROOT}/intermediates/db/sentinel_download_uuids.parquet"
+UUIDS_FILE="${PROJECT_ROOT}/intermediates/uuids/sentinel_download_uuids.parquet"
 OUTPUT_DIR="${PROJECT_ROOT}/intermediates/tiffs"
 
 # Check prerequisites
@@ -39,15 +38,7 @@ if [ ! -f "${UUIDS_FILE}" ]; then
     exit 1
 fi
 
-echo "========================================"
-echo "SENTINEL-1 IMAGERY DOWNLOAD"
-echo "========================================"
-echo "Container: ${CONTAINER}"
-echo "UUIDs: ${UUIDS_FILE}"
-echo "Output: ${OUTPUT_DIR}"
-echo ""
 
-# Run download inside the apptainer container
 apptainer run --writable "${CONTAINER}" \
     uv run "${CONTAINER_PATH}/sentinel1/download/download_images.py" \
     --uuids "${UUIDS_FILE}" \
@@ -56,9 +47,3 @@ apptainer run --writable "${CONTAINER}" \
     --login-dotenv "${LOGIN_DOTENV}" \
     --search-workers 32 \
     --download-workers 4
-
-echo ""
-echo "========================================"
-echo "DOWNLOAD COMPLETE"
-echo "========================================"
-echo "Downloaded imagery to: ${OUTPUT_DIR}"
