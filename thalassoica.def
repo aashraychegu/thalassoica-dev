@@ -1,0 +1,274 @@
+Bootstrap: docker
+From: python:3.14-slim-bookworm
+
+%post
+    # Set environment variables for non-interactive installation
+    export DEBIAN_FRONTEND=noninteractive
+    export TZ=UTC
+
+    # Clean apt state before installing packages
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        curl \
+        wget \
+        ca-certificates \
+        gcc \
+        g++ \
+        gfortran \
+        make \
+        cmake \
+        git \
+        build-essential \
+        pkg-config \
+        libpq-dev \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        libxml2-dev \
+        libgeos-dev \
+        libproj-dev \
+        libsqlite3-dev \
+        libbz2-dev \
+        libffi-dev \
+        libncurses-dev \
+        libreadline-dev \
+        liblzma-dev \
+        zlib1g-dev \
+        libzstd-dev \
+        libjpeg-dev \
+        libpng-dev \
+        libtiff-dev \
+        libgeotiff-dev \
+        libhdf5-dev \
+        libnetcdf-dev \
+        libnetcdf-c++4-dev \
+        netcdf-bin \
+        libopenblas-dev \
+        liblz4-dev \
+        libsnappy-dev \
+        libbrotli-dev \
+        proj-bin \
+        libgeos++-dev \
+        postgresql-client \
+        postgis \
+        unzip \
+        zsh \
+        lsd \
+        libopenmpi-dev \
+        openmpi-bin \
+        libboost-all-dev \
+        libeigen3-dev \
+        libarmadillo-dev \
+        libgit2-dev \
+        libspatialite-dev \
+        libexpat1-dev \
+        libxerces-c-dev \
+        swig
+
+    # Install setuptools and numpy for GDAL Python bindings
+    pip3 install setuptools numpy
+
+    # Build and install GDAL 3.12.3 from source
+    cd /tmp
+    wget https://github.com/OSGeo/gdal/releases/download/v3.12.3/gdal-3.12.3.tar.gz
+    tar -xzf gdal-3.12.3.tar.gz
+    cd gdal-3.12.3
+    
+    # Remove build directory if it exists and create fresh one
+    rm -rf build
+    mkdir build
+    cd build
+    
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DBUILD_PYTHON_BINDINGS=ON \
+        -DBUILD_SHARED_LIBS=ON \
+        -DGDAL_USE_GEOS=ON \
+        -DGDAL_USE_GEOTIFF=ON \
+        -DGDAL_USE_CURL=ON \
+        -DGDAL_USE_EXPAT=ON \
+        -DGDAL_USE_HDF5=ON \
+        -DGDAL_USE_NETCDF=ON \
+        -DGDAL_USE_POSTGRESQL=ON \
+        -DGDAL_USE_SQLITE3=ON \
+        -DGDAL_USE_ZLIB=ON \
+        -DGDAL_USE_LIBLZMA=ON \
+        -DGDAL_USE_ZSTD=ON \
+        -DGDAL_USE_PROJ=ON \
+        -DGDAL_USE_TIFF=ON \
+        -DGDAL_USE_JPEG=ON \
+        -DGDAL_USE_PNG=ON \
+        -DPython_EXECUTABLE=/usr/local/bin/python3
+    
+    make -j"$(nproc)"
+    make install
+    
+    # Update library cache
+    ldconfig
+    
+    # Clean up GDAL build files
+    cd /tmp
+    rm -rf gdal-3.12.3 gdal-3.12.3.tar.gz
+
+    # Install DuckDB CLI
+    curl https://install.duckdb.org | sh
+
+    # Move DuckDB to system-wide location
+    mv /root/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb
+
+    # Clean up
+    rm -rf /root/.duckdb
+
+    # Install UV to a system-wide location
+    curl -LsSf https://astral.sh/uv/install.sh | env INSTALLER_NO_MODIFY_PATH=1 sh
+    mv /root/.local/bin/uv /usr/local/bin/uv
+    mv /root/.local/bin/uvx /usr/local/bin/uvx
+    rm -rf /root/.local
+
+    # Install Oh My Posh
+    wget https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-linux-amd64 -O /usr/local/bin/oh-my-posh
+    chmod +x /usr/local/bin/oh-my-posh
+
+    # Create theme directory and download atomic theme
+    mkdir -p /opt/themes
+    wget -q -O /opt/themes/atomic.omp.json https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/atomic.omp.json
+
+    # Clone the seaice-cyclone-imagery repository
+    git clone https://github.com/aashraychegu/seaice-cyclone-imagery.git /opt/project
+    cd /opt/project
+
+    # Create venv and sync dependencies
+    /usr/local/bin/uv venv --python 3.14
+    /usr/local/bin/uv sync
+
+    # Clean up uv cache for smaller image
+    rm -rf ~/.cache/uv
+
+    git clone --depth 1 https://github.com/ClimateGlobalChange/tempestextremes.git /opt/src/tempestextremes
+    cd /opt/src/tempestextremes
+
+    mkdir -p build
+    cd build
+
+    cmake \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/opt/tempestextremes \
+    -DENABLE_MPI=ON \
+    ..
+
+    make -j"$(nproc)"
+    make install
+
+    # verify right away
+    ls -lah /opt/tempestextremes
+    ls -lah /opt/tempestextremes/bin
+
+    # Run ldconfig to update library cache
+    ldconfig
+
+    # Clean up build files to reduce image size
+    cd /opt/src
+    rm -rf tempestextremes
+
+    # Create writable ZDOTDIR directory
+    mkdir -p /opt/zshdir
+    chmod 755 /opt/zshdir
+
+    # Create .zshrc with Oh My Posh initialization and project setup
+    cat > /opt/zshdir/.zshrc << 'EOF'
+# Initialize Oh My Posh
+eval "$(oh-my-posh init zsh --config /opt/themes/atomic.omp.json)"
+
+# Change to project directory
+cd /opt/project
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Aliases
+alias ll='ls -lah'
+alias python='python3'
+alias pip='uv pip'
+alias duck='duckdb'
+alias cleanup='apt-get clean && rm -rf /var/lib/apt/lists/*'
+
+# Welcome message
+echo ""
+echo "╭─── Thalassoica Environment ──╮"
+echo "│  Python: $(python3 --version) │"
+echo "│  UV: $(uv --version)          │"
+echo "│  DuckDB: $(duckdb --version)  │"
+echo "│  GDAL: $(gdalinfo --version)  │"
+echo "│  TempestExtremes: /opt/tempestextremes/bin │"
+echo "│  Project: /opt/project        │"
+echo "╰───────────────────────────────╯"
+echo ""
+EOF
+
+    # Also configure bashrc as fallback
+    cat >> /root/.bashrc << 'BASHRC_EOF'
+
+# Thalassoica Bash initialization
+echo ""
+echo "╭─── Thalassoica Environment ──╮"
+echo "│  Python: $(python3 --version) │"
+echo "│  UV: $(uv --version)          │"
+echo "│  DuckDB: $(duckdb --version)  │"
+echo "│  GDAL: $(gdalinfo --version)  │"
+echo "│  TempestExtremes: /opt/tempestextremes/bin │"
+echo "│  Project: /opt/project        │"
+echo "╰───────────────────────────────╯"
+echo ""
+BASHRC_EOF
+
+    # Configure .bash_profile for bash login shells
+    cat >> /root/.bash_profile << 'BASH_PROFILE_EOF'
+# Source ~/.bashrc for Thalassoica environment
+if [ -f ~/.bashrc ]; then
+    source ~/.bashrc
+fi
+BASH_PROFILE_EOF
+
+    # Clean up package lists
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+    # Remove any unused dependencies
+    apt-get autoremove -y
+
+%files
+    # Copy local atomic.omp.json if it exists (will override the downloaded one)
+    atomic.omp.json /opt/themes/atomic.omp.json
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export PATH=/opt/project/.venv/bin:/usr/local/bin:/opt/tempestextremes/bin:$PATH
+    export PYTHONUNBUFFERED=1
+    export PYTHONPATH=/opt/project/.venv/lib/python3.14/site-packages:$PYTHONPATH
+    export LD_LIBRARY_PATH=/opt/tempestextremes/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+    export PROJECT_DIR=/opt/project
+    export TEMPEST_DIR=/opt/tempestextremes
+    export ZDOTDIR=/opt/zshdir
+    export TERM=xterm-256color
+    export PYTHONNOUSERSITE=1
+    export PIP_NO_PYTHON_VERSION_WARNING=1
+    export VIRTUAL_ENV=/opt/project/.venv
+    export VIRTUAL_ENV_PROMPT="(thalassoica)"
+
+%runscript
+    cd /opt/project
+    exec zsh
+
+%startscript
+    cd /opt/project
+    exec zsh
+
+%labels
+    Author="Aashray Chegu"
+    Version="1.1"
+    Description="Thalassoica environment with TempestExtremes and GDAL 3.12.3 for sea ice cyclone imagery analysis"
+    ThalassoicaRepo="https://github.com/aashraychegu/seaice-cyclone-imagery"
+    TempestExtremesRepo="https://github.com/ClimateGlobalChange/tempestextremes"
+    GDALVersion="3.12.3 (built from source)"
+    License="MIT"

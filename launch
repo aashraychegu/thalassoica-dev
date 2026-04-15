@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+apptainer run --writable thalassoica
