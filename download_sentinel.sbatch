@@ -2,11 +2,12 @@
 #SBATCH --job-name=sentinel_download
 #SBATCH --output=sentinel_download_%j.out
 #SBATCH --error=sentinel_download_%j.err
-#SBATCH --partition=batch
+#SBATCH --partition=serc
 #SBATCH --time=240:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=32
+#SBATCH --mem-per-cpu=2G
 
 # Download Sentinel-1 imagery for thalassoica pipeline
 # Prerequisites: UUIDs file exported from run_thalassoica
