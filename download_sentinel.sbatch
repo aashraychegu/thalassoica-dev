@@ -3,7 +3,7 @@
 #SBATCH --output=sentinel_download_%j.out
 #SBATCH --error=sentinel_download_%j.err
 #SBATCH --partition=serc
-#SBATCH --time=240:00:00
+#SBATCH --time=120:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=32
