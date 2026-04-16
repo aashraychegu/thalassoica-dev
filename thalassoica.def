@@ -258,11 +258,21 @@ BASH_PROFILE_EOF
 
 %runscript
     cd /opt/project
-    exec zsh
+    # If arguments are provided, execute them; otherwise start zsh
+    if [ $# -gt 0 ]; then
+        exec "$@"
+    else
+        exec zsh
+    fi
 
 %startscript
     cd /opt/project
-    exec zsh
+    # If arguments are provided, execute them; otherwise start zsh
+    if [ $# -gt 0 ]; then
+        exec "$@"
+    else
+        exec zsh
+    fi
 
 %labels
     Author="Aashray Chegu"
